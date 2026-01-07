@@ -1,0 +1,284 @@
+/* let ss = SpreadsheetApp.openByUrl('https://docs.google.com/spreadsheets/d/<id>/edit?usp=sharing')
+console.log('sheet name', ss.getName());
+//let form = FormApp.getActiveForm()
+//console.log('form name', form.getName());
+const formId = '<id>';
+const form = FormApp.openById(formId);
+const criteria = 'SkillSet'
+
+//const getCurrentOptions = () => {
+//    let sheet1 = ss.getSheetByName('AWS');
+//    let data = sheet1.getDataRange().getValues().map(x=>x[0]);
+//    return data
+//}
+*/
+const getCurrentOptions = () => {
+  const readColA = (name) => {
+    const sh = ss.getSheetByName(name);
+    if (!sh) throw new Error(`Sheet not found: ${name}`);
+    return sh.getDataRange().getValues().map(r => r[0]).filter(v => v !== '' && v != null);
+  };
+
+  console.log(readColA('AWS'))
+  return {
+    aws: readColA('AWS'),
+    azure: readColA('Azure'),
+    gcp: readColA('GCP'),
+  };
+};
+
+
+/* const getQuestionIDs = () => {
+    //form.getItems().forEach(question => {
+    //    console.log(`Question Title: ${question.getTitle()}
+    //    Question ID: ${question.getId()}`);
+    //    if (question.getTitle() === criteria) {
+    //       console.log('Question Title to use:', question.getId())
+    //       let question_id = question.getId();
+    //    }
+        
+    //})
+    //return question_id
+    //const form = FormApp.getActiveForm();
+    const item = form.getItems().find(q => q.getTitle() === criteria);
+
+    if (!item) {
+      throw new Error(`Question "${criteria}" not found`);
+    }
+    console.log(item.getId());
+    return item.getId();
+} */
+
+/* const getCurrentOptions = () => {
+  const readColA = (name) => {
+    const sh = ss.getSheetByName(name);
+    if (!sh) throw new Error(`Sheet not found: ${name}`);
+    return sh.getDataRange().getValues().map(r => r[0]).filter(v => v !== '' && v != null);
+  };
+
+  return {
+    aws: readColA('AWS'),
+    azure: readColA('Azure'),
+    gcp: readColA('GCP'),
+  };
+} */
+
+
+
+
+
+/*function setupBranching() {
+  //const form = FormApp.getActiveForm();
+
+  // 1) Find the "SkillSet" question
+  const skillItem = form.getItems(FormApp.ItemType.MULTIPLE_CHOICE)
+    .find(i => i.getTitle() === 'SkillSet');
+
+  if (!skillItem) throw new Error('Question "SkillSet" not found');
+  const skillQ = skillItem.asMultipleChoiceItem();
+
+  // 2) Find your sections by title (Page Breaks)
+  const awsPage = findPageBreakByTitle_(form, 'AWS Section');
+  const azurePage = findPageBreakByTitle_(form, 'Azure Section');
+  const gcpPage = findPageBreakByTitle_(form, 'GCP Section');
+
+  // 3) Set choices + navigation
+  const choices = [
+    skillQ.createChoice('AWS', awsPage),
+    skillQ.createChoice('Azure', azurePage),
+    skillQ.createChoice('GCP', gcpPage),
+  ];
+  skillQ.setChoices(choices);
+
+  // 4) OPTIONAL: rename a question title in each section
+  // For example rename the first question in AWS section:
+  renameFirstQuestionInSection_(form, awsPage.getId(), 'AWS skills (pick one)');
+  renameFirstQuestionInSection_(form, azurePage.getId(), 'Azure skills (pick one)');
+  renameFirstQuestionInSection_(form, gcpPage.getId(), 'GCP skills (pick one)');
+}
+
+// --- helpers ---
+
+function findPageBreakByTitle_(form, title) {
+  const item = form.getItems(FormApp.ItemType.PAGE_BREAK)
+    .find(i => i.getTitle() === title);
+  if (!item) throw new Error(`Page break (section) not found: "${title}"`);
+  return item.asPageBreakItem();
+}
+
+function renameFirstQuestionInSection_(form, pageBreakId, newTitle) {
+  const items = form.getItems();
+  let inSection = false;
+
+  for (const it of items) {
+    if (it.getType() === FormApp.ItemType.PAGE_BREAK) {
+      inSection = (it.getId() === pageBreakId);
+      continue;
+    }
+    if (inSection) {
+      // rename the first non-pagebreak item in this section
+      it.setTitle(newTitle);
+      return;
+    }
+  }
+}
+
+
+
+
+
+
+
+const setCurrentOptions = () => {
+    let id = getQuestionIDs();
+    console.log(id);
+    let currentOptions = getCurrentOptions();
+     
+form.getItemById(id).asMultipleChoiceItem().setChoiceValues(currentOptions);
+}
+
+const onFormSubmit = () => {
+    let latestResponse = getLatestResponse();
+    let optionSelected = latestResponse[1];
+    updateOptions(optionSelected);
+    setCurrentOptions()
+}
+
+const getLatestResponse = () => {
+    let formResponseSheet = ss.getSheetByName('Form Responses 1');
+    let latestResponse =  formResponseSheet.getDataRange().getValues().pop()
+    return latestResponse
+}
+*/
+
+function syncFormFromSheets() {
+  const ss = SpreadsheetApp.openByUrl('https://docs.google.com/spreadsheets/d/<id>/edit?usp=sharing');
+  //const form = FormApp.getActiveForm();
+  const formId = '<id>';
+  const form = FormApp.openById(formId);
+  const criteria = 'SkillSet'
+  //if (!form) throw new Error('No active form. Bind this script to the Google Form.');
+
+  // Providers you support + their sheet/tab names
+  const providers = [
+    { key: 'AWS',   sheet: 'AWS',   sectionTitle: 'AWS Section' },
+    { key: 'Azure', sheet: 'Azure', sectionTitle: 'Azure Section' },
+    { key: 'GCP',   sheet: 'GCP',   sectionTitle: 'GCP Section' },
+  ];
+
+  // Keep only providers where the sheet exists
+  const active = providers.filter(p => ss.getSheetByName(p.sheet));
+
+  // 1) Find SkillSet question
+  const skillItem = form.getItems(FormApp.ItemType.MULTIPLE_CHOICE)
+    .find(i => i.getTitle() === criteria);
+  if (!skillItem) throw new Error('Question "SkillSet" not found');
+  const skillQ = skillItem.asMultipleChoiceItem();
+
+  // 2) For each active provider: ensure section exists + ensure a MC question exists + set options from Sheet
+  const choiceTargets = [];
+
+  active.forEach(p => {
+    const section = getOrCreatePageBreak_(form, p.sectionTitle);
+
+    // Ensure a multiple-choice question exists right after this section
+    //const q = getOrCreateFirstQuestionInSection_(form, section.getId(), `${p.key} skills (pick one)`);
+    const q = getFirstItemInSectionByType_(form, section.getId(), FormApp.ItemType.MULTIPLE_CHOICE);
+    console.log('q value', q)
+
+    // Read options from provider sheet col A
+    const options = readColA_(ss, p.sheet);
+    console.log('options value', options)
+
+    // Set question choices
+    /q.asMultipleChoiceItem().setChoiceValues(options);
+    // Add branching choice
+    choiceTargets.push(skillQ.createChoice(p.key, section));
+  });
+
+  // 3) Set SkillSet choices + navigation based on active providers
+  skillQ.setChoices(choiceTargets);
+}
+
+
+// -------- helpers --------
+
+function readColA_(ss, sheetName) {
+  const sh = ss.getSheetByName(sheetName);
+  if (!sh) return [];
+  return sh.getDataRange().getValues()
+    .map(r => r[0])
+    .map(v => (v == null ? '' : String(v).trim()))
+    .filter(v => v);
+}
+
+function getOrCreatePageBreak_(form, title) {
+  const existing = form.getItems(FormApp.ItemType.PAGE_BREAK)
+    .find(i => i.getTitle() === title);
+  if (existing) return existing.asPageBreakItem();
+
+  return form.addPageBreakItem().setTitle(title);
+}
+
+function getOrCreateFirstQuestionInSection_(form, pageBreakId, defaultTitle) {
+  const items = form.getItems();
+  let inSection = false;
+
+/*   for (const it of items) {
+    if (it.getType() === FormApp.ItemType.PAGE_BREAK) {
+      inSection = (it.getId() === pageBreakId);
+      continue;
+    }
+    if (inSection) {
+      // if first item is already a question, reuse it
+      it.setTitle(defaultTitle);
+      if (it.getType() !== FormApp.ItemType.MULTIPLE_CHOICE) {
+        throw new Error(`First item in section "${defaultTitle}" is not Multiple Choice. Fix form structure.`);
+      }
+      return it;
+    }
+  } */
+
+  function getFirstItemInSectionByType_(form, pageBreakId, type) {
+    const items = form.getItems();
+    let inSection = false;
+
+    for (const it of items) {
+      if (it.getType() === FormApp.ItemType.PAGE_BREAK) {
+        inSection = (it.getId() === pageBreakId);
+        continue;
+      }
+      if (!inSection) continue;
+
+      if (it.getType() === type) {
+        return it; // FormApp.Item
+      }
+    }
+    return null;
+  }
+  
+
+  // If section had no questions, add one at the end (Forms API can’t insert in the middle reliably)
+  return form.addMultipleChoiceItem().setTitle(defaultTitle);
+}
+
+
+
+
+function getFirstItemInSectionByType_(form, pageBreakId, type) {
+  const items = form.getItems();
+  let inSection = false;
+
+  for (const it of items) {
+    if (it.getType() === FormApp.ItemType.PAGE_BREAK) {
+      inSection = (it.getId() === pageBreakId);
+      continue;
+    }
+    if (!inSection) continue;
+
+    if (it.getType() === type) {
+      return it; // FormApp.Item
+    }
+  }
+  return null;
+}
